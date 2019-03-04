@@ -1,7 +1,6 @@
 package com.limbo.top10downloader
 
 import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,18 +17,15 @@ class ViewHolder(v: View) {
 class FeedAdapter(context: Context, private val resource: Int, private val applications: List<FeedEntry>)
     : ArrayAdapter<FeedEntry>(context, resource) {
 
-    private val TAG = "FeedAdapter"
     // layout inflater -> take the xml representation and produce widgets from them
     // A context is an interface to global information about an application environment, which is an abstract class whose implementation is provided by the Android System
     private val inflater = LayoutInflater.from(context)
 
     override fun getCount(): Int {
-        Log.d(TAG, "getCount() called")
         return applications.size
     }
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        Log.d(TAG, "getView() called")
         // inflates a new view everytime a new view is created...slow and inefficient | creates a new view everytime a view comes in the screen
         //val view = inflater.inflate(resource, parent, false)
 
@@ -37,14 +33,12 @@ class FeedAdapter(context: Context, private val resource: Int, private val appli
         val view: View
         val viewHolder: ViewHolder
         if(convertView == null) {
-            Log.d(TAG, "getView called with null convertView")
             view = inflater.inflate(resource, parent, false)
             // findViewById only gets called when view object tag is a viewHolder class instance
             viewHolder = ViewHolder(view)
             // use tag property to store viewHolder in view object
             view.tag = viewHolder
         } else {
-            Log.d(TAG, "getView provided a convertView")
             view = convertView
             // grab viewHolder from view.tag property as it returns an object
             viewHolder = view.tag as ViewHolder
