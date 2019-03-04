@@ -1,10 +1,15 @@
 package com.limbo.top10downloader
 
+import android.content.Context
 import android.os.AsyncTask
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.widget.ArrayAdapter
+import android.widget.ListView
+import kotlinx.android.synthetic.main.activity_main.*
 import java.net.URL
+import kotlin.properties.Delegates
 
 class FeedEntry {
     var name: String = ""
@@ -30,20 +35,37 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         Log.d(TAG, "onCreate called")
-        val downloadData = DownloadData()
+        val downloadData = DownloadData(this, xmlListView)
         downloadData.execute("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=10/xml")
         Log.d(TAG, "onCreate: done")
     }
 
     // kotlin's equivalent of static
+    // changed this into a companion object to avoid memory leaks
     companion object {
-        private class DownloadData : AsyncTask<String, Void, String>() {
+        private class DownloadData(context: Context, listView: ListView) : AsyncTask<String, Void, String>() {
             private val TAG = "DownloadData"
+
+            // defines these props as weak references (to prevent memory leaks in garbage collection)
+            var propContext: Context by Delegates.notNull()
+            var propListView: ListView by Delegates.notNull()
+
+            init {
+                propContext = context
+                propListView = listView
+            }
+
             override fun onPostExecute(result: String) {
                 super.onPostExecute(result)
                 // Log.d(TAG, "onPostExecute: parameter is $result")
                 val parseApplications = ParseApplications()
                 parseApplications.parse(result)
+
+                // 1st paramter: activity -> mainActivity instance
+                // 2nd parameter: resource containing the text view which the array adapter will use to put data to put into
+                // 3 parameter: array list of data to put into each list item
+                val arrayAdapter = ArrayAdapter<FeedEntry>(propContext, R.layout.list_item, parseApplications.applications)
+                propListView.adapter = arrayAdapter
             }
 
             // runs this task in a background thread
