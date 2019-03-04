@@ -29,20 +29,37 @@ class FeedEntry {
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
+    // this line of code won't work because Android Studio hasn't set the contentView for the layout that references the xmlListView yet
+    // as its view is inflated when onCreate method is called
+    //private val downloadData = DownloadData(this, xmlListView)
+    private val downloadData by lazy { DownloadData(this, xmlListView) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         Log.d(TAG, "onCreate called")
-        val downloadData = DownloadData(this, xmlListView)
-        downloadData.execute("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=10/xml")
+        // val downloadData = DownloadData(this, xmlListView)
+        downloadData.execute("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=200/xml")
         Log.d(TAG, "onCreate: done")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // cancels the async task if it hasn't loaded all of the data yet..
+        // stops async task from running when this activity is destroyed otherwise, this async task will continue running to completion in the new Activity instance
+        // but the new activity will not hold reference to the old  instance of the async task (memory leak)
+        // will only be cancelled if the first network call made in doInBackground() method returns (function does not run for a long time)
+        downloadData.cancel(true)
     }
 
     // kotlin's equivalent of static
     // changed this into a companion object to avoid memory leaks
     companion object {
+        // An AsyncTask allows you to perform background operations and publish results on thet UI thread without having to manipulate threads and/or handlers
+        // AsyncTasks should be used for short operations (a few seconds at most)
+        // AsyncTask runs on the background thread whose result is published on the UI thread
+        // runs in the background so that the Main UI thread is not blocked by the network call being made to retrieve the xml data
         private class DownloadData(context: Context, listView: ListView) : AsyncTask<String, Void, String>() {
             private val TAG = "DownloadData"
 
@@ -64,8 +81,10 @@ class MainActivity : AppCompatActivity() {
                 // 1st paramter: activity -> mainActivity instance
                 // 2nd parameter: resource containing the text view which the array adapter will use to put data to put into
                 // 3 parameter: array list of data to put into each list item
-                val arrayAdapter = ArrayAdapter<FeedEntry>(propContext, R.layout.list_item, parseApplications.applications)
-                propListView.adapter = arrayAdapter
+//                val arrayAdapter = ArrayAdapter<FeedEntry>(propContext, R.layout.list_item, parseApplications.applications)
+//                propListView.adapter = arrayAdapter
+                val feedAdapter = FeedAdapter(propContext, R.layout.list_record, parseApplications.applications)
+                propListView.adapter = feedAdapter
             }
 
             // runs this task in a background thread
