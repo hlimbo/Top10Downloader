@@ -12,6 +12,11 @@ import kotlinx.android.synthetic.main.activity_main.*
 import java.net.URL
 import kotlin.properties.Delegates
 
+// Read about to prevent data from being downloaded again
+// Data being downloaded again:
+//  * could waste data if person holds limited data plan
+// https://developer.android.com/training/efficient-downloads/redundant_redundant.html
+
 class FeedEntry {
     var name: String = ""
     var artist: String = ""
@@ -28,6 +33,11 @@ class FeedEntry {
     }
 }
 
+const val FEED_URL = "FEED_URL"
+const val FEED_LIMIT = "FEED_LIMIT"
+const val DEFAULT_FEED_URL = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
+const val DEFAULT_FEED_LIMIT = 10
+
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
     // this line of code won't work because Android Studio hasn't set the contentView for the layout that references the xmlListView yet
@@ -35,11 +45,26 @@ class MainActivity : AppCompatActivity() {
     //private val downloadData = DownloadData(this, xmlListView)
     // private val downloadData by lazy { DownloadData(this, xmlListView) }
     private var downloadData: DownloadData? = null
+    private var feedUrl: String = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
+    private var feedLimit = 10
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        downloadUrl("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=200/xml")
+
+        Log.d(TAG,"onCreate begin")
+
+        // restore state here since onrestoreinstancestate gets called after oncreate gets called and downloading of data happens here..
+        if(savedInstanceState != null) {
+            Log.d(TAG, "onCreate: restoring instance state")
+            with(savedInstanceState) {
+                feedUrl = getString(FEED_URL, DEFAULT_FEED_URL)
+                feedLimit = getInt(FEED_LIMIT, DEFAULT_FEED_LIMIT)
+            }
+        }
+
+        // %d in feedUrl is replaced with feedLimit value
+        downloadUrl(feedUrl.format(feedLimit))
         Log.d(TAG, "onCreate done")
     }
 
@@ -54,6 +79,13 @@ class MainActivity : AppCompatActivity() {
     // called when main menu view is inflated (rendered on android screen)
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.feeds_menu, menu)
+        Log.d(TAG, "onCreateOptionsMenu called")
+        if(feedLimit == 10) {
+            menu?.findItem(R.id.menu10)?.isChecked = true
+        } else {
+            menu?.findItem(R.id.menu25)?.isChecked = true
+        }
+
         return true
     }
 
@@ -61,18 +93,41 @@ class MainActivity : AppCompatActivity() {
     // Prefer to use elvis operator ? safe call operator on nullable types
     // called when an item from the menu list is selected by the user
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val feedUrl: String
+        val oldFeedUrl = String(feedUrl.toCharArray())
+        val oldFeedLimit: Int = feedLimit
         when(item.itemId) {
             R.id.menuFree ->
-                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=200/xml"
+                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
             R.id.menuPaid ->
-                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/toppaidapplications/limit=10/xml"
+                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/toppaidapplications/limit=%d/xml"
             R.id.menuSongs ->
-                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topsongs/limit=10/xml"
+                feedUrl = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topsongs/limit=%d/xml"
+            R.id.menu10, R.id.menu25 -> {
+                // radio button checks (radio button unchecks the other radio button if this current radio button is selected)
+                if(!item.isChecked) {
+                    item.isChecked = true
+                    // subtract from the sum of the 10 and 25 to get the other top x page
+                    feedLimit = 35 - feedLimit
+                    Log.d(TAG, "onOptionsItemSelected: ${item.title} setting feedLimit to $feedLimit")
+                } else {
+                    Log.d(TAG, "onOptionsItemSelected: ${item.title} setting feedLimit unchanged")
+                }
+            }
+            R.id.menuRefresh -> {
+                Log.d(TAG, "onOptionsItemSelected: menuRefresh selected")
+            }
             else ->
                 return super.onOptionsItemSelected(item)
         }
-        downloadUrl(feedUrl)
+
+        // prevents redownloading the same set of data if the same feed url was selected
+        if(oldFeedUrl != feedUrl || oldFeedLimit != feedLimit || item.itemId == R.id.menuRefresh) {
+            if(item.itemId != R.id.menuRefresh)
+                Log.d(TAG, "onOptionsItemSelected: different item was selected: $feedUrl | new feed limit: $feedLimit")
+            downloadUrl(feedUrl.format(feedLimit))
+        } else {
+            Log.d(TAG, "onOptionsItemSelected: same item was selected no need to perform an asynctask to redownload")
+        }
         return true
     }
 
@@ -83,6 +138,16 @@ class MainActivity : AppCompatActivity() {
         // but the new activity will not hold reference to the old  instance of the async task (memory leak)
         // will only be cancelled if the first network call made in doInBackground() method returns (function does not run for a long time)
         downloadData?.cancel(true)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle?) {
+        // saves the view hierarchy state (e.g. editText value is saved when screen orientation is changed)
+        super.onSaveInstanceState(outState)
+
+        outState?.putString(FEED_URL, feedUrl)
+        outState?.putInt(FEED_LIMIT, feedLimit)
+
+        Log.d(TAG, "onSaveInstanceState called")
     }
 
     // kotlin's equivalent of static
